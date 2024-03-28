@@ -1,0 +1,56 @@
+--------------------------------------------
+A. Camera-based aruco-landing simulation
+
+need 4 terminals
+
+
+sim1:
+t1:roslaunch gazebo_ros iris_world.launch world_name:="2_arucos.world"
+t2:cd ardupilot/ArduCopter && ../Tools/autotest/sim_vehicle.py -f gazebo-iris
+t3:rosrun gazebo_drone precision_landing.py 
+t4:rqt
+
+
+sim2:
+t1:roslaunch gazebo_ros iris_world.launch world_name:="drone_delivery.world"
+t2:cd ardupilot/Arducopter && ../Tools/autotest/sim_vehicle.py -f gazebo-iris
+t3:rosrun gazebo_drone drone_delivery.py 
+t4:rqt
+
+
+
+
+
+--------------------------------------------------
+B. (r,p,y,throttle) control interface for RL -- demo scripts
+need 2 terminals
+
+terminal1:
+cd ardupilot/ArduCopter/
+../Tools/autotest/sim_vehicle.py --console 
+
+
+terminal2:
+cd RL_ws/
+source devel/setup.bash
+rosrun RL_gazebo_drone RL_sensing.py
+
+takeoff 10meter -> full throttle up for 10s -> hold alt with approximate throttle for 10s -> land
+----------------------------------------------------------------------------------------------------------------
+holybro parameter:
+
+        // const float kg_vehicleMass = 2.1;   // weight for the real drone
+        // const Matrix3f J = {0.03143, 0, 0, 0, 0.03743, 0, 0, 0, 0.02264}; // This is from CAD model of the real drone, center of mass
+        // const Matrix3f Jinv = {31.8167, 0, 0, 0, 26.7165, 0, 0, 0, 44.1696}; // hand-computed 
+
+--------------------------------------------------------------------------------------------------------
+set_attitude method collective thrust ratio conversion to throttle force:
+
+    # 0.5 throttle means hover, this implies that thrust 0.5 == gravity == mass * 9.8 == 2.1 * 9.8 N
+    # saturation 0.05 - 0.95
+    # ratio->thrust      thrust == 2.1*9.8/(0.5-0.05) * (ratio - 0.05)
+    # thrust->ratio      ratio == (thrust/(2.1*9.8/(0.5-0.05))) + 0.05
+    # more details in website: https://docs.google.com/spreadsheets/d/1_75aZqiT_K1CdduhUe4-DjRgx3Alun4p8V2pt6vM5P8/edit#gid=0
+
+
+

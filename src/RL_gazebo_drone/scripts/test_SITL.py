@@ -1,4 +1,4 @@
-from dynamics import QuadrotorEnv, render1
+from dynamics import QuadrotorEnv
 from agent import SAC
 from pyquaternion import Quaternion
 import numpy as np
@@ -15,6 +15,8 @@ import time
 from pymavlink.quaternion import QuaternionBase
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
+import os
+from gym import spaces
 
 
 
@@ -99,7 +101,7 @@ def set_target_attitude_throttle_easy(connection, boot_time, action):
 
     """
 
-    quat, thrust_k = yaw3force_to_quat_thrust(action[0],action[1],action[2], 0)
+    quat, thrust_k = yaw3force_to_quat_thrust(action[0], action[1], action[2], 0)
 
     connection.mav.set_attitude_target_send(
         int(1e3 * (time.time() - boot_time)), # ms since boot
@@ -160,17 +162,22 @@ def yaw3force_to_quat_thrust(fx, fy, fz, yaw):
 
 def test(args):
     env = QuadrotorEnv(args)
-    env.control_mode = 'takeoff'
-    agent_tf = SAC(14, env.action_space, args)
-    agent_tf.load_model('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700', evaluate=True)
-    agent_tr = SAC(18, env.action_space, args)
-    agent_tr.load_model('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01', evaluate=True)
+    cwd = os.getcwd()
 
-    state = env.reset()
-    state = state[:14]
+    action_space_tf = spaces.Box(low=np.array([-0.3, -0.3, -25.0]), high=np.array([0.3, 0.3, 0.0]), shape=(3,))
+    action_space_tr = spaces.Box(low=np.array([-1.0, -1.0, -25.0]), high=np.array([1.0, 1.0, 0.0]), shape=(3,))
+
+    agent_tf = SAC(14, action_space_tf, args)
+    agent_tr = SAC(18, action_space_tr, args)
+
+    path_tf = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700')
+    path_tr = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01')
+
+    agent_tf.load_model(path_tf)
+    agent_tr.load_model(path_tr)
+
+    state = np.zeros((14,))
     done = False
-    state[10:] = [0,0,0,0]
-    angles = []
 
     # Start a connection listening on a UDP port
     connection = mavutil.mavlink_connection('udpin:localhost:14551')
@@ -299,32 +306,24 @@ def test(args):
         if time_now - time_last < 0.0175:   # frequency control
             continue
         time_last = time_now
-        # state[0:10] = [x_record[-1],y_record[-1],z_record[-1],vx_record[-1],vy_record[-1],vz_record[-1],
-        #                quat_enu_collect[0],quat_enu_collect[1], quat_enu_collect[2], quat_enu_collect[3]]
-        # state[0:10] = [0,0,z_record[-1],vx_record[-1],vy_record[-1],vz_record[-1],
-        #                quat_enu_collect[0],quat_enu_collect[1], quat_enu_collect[2], quat_enu_collect[3]]
-        
-        
-        ang_vel = 0.05 / 3.0
-        theta = ang_vel * time_record[-1] / np.pi * 180
 
-        state[10:] = [0,0,0,0]
+        
         state[0:10] = [x_record[-1],y_record[-1],z_record[-1],vx_record[-1],vy_record[-1],vz_record[-1],
                        quat_ned_collect[0],quat_ned_collect[1], quat_ned_collect[2], quat_ned_collect[3]]
-        state_tr = np.concatenate([state, np.zeros(4,)])
-        env.steps += 1
+        
+        state_tr = np.concatenate([state, np.zeros(4,)]) # for tracking policy use, add relative positions
         uni_fur_pos, _ = env.compute_uni_future_traj(4)
         rel_pos = (uni_fur_pos - state[:2].reshape(-1, 1)).flatten('F')
         state_tr[10:] = rel_pos
-        # print('state_tr', state_tr[10:])
+        state[10:] = [0, 0, 0, 0] # force reset
         action = agent_tf.select_action(state, eval=True)
 
-        if time.time() - time_start > 2:
-            action = agent_tr.select_action(state_tr)
+        if time.time() - time_start > 4:
+            action = agent_tr.select_action(state_tr, eval=True)
         
-        # print(x_record[-1],y_record[-1],z_record[-1],action)
         print(action)
-        flag = flag+1
+        flag = flag + 1
+        env.steps += 1
 
         # set_target_attitude_throttle(connection, boot_time, [action[1], action[0], action[2]])
         set_target_attitude_throttle_easy(connection, boot_time, action)

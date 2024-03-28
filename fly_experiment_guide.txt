@@ -1,0 +1,23 @@
+--------------------------------------------
+A. RL-takeoff experiment
+
+vicon computer (vicon - windows system - yang):
+1. vicon launch
+2. setup cameras
+
+alienware laptop (ground station - linux system - yang)
+1. launch ground station
+
+
+yikun's laptop:
+1. connect all power on drone, check if microusb to cube is good, if wifi dongle didnt blink, press power button on tx2 (under ethenet port)
+2. open vscode, connect via ssh (if not find existing session, use ssh tx2@10.192.11.1, this ip address can be found with tx2 installed on large board using command: ifconfig)
+3. turn port ttyACM0 into executable: a. change to terminal in vscode b.type 'sudo chmod 666 /dev/ttyACM0'
+4. using model '/home/tx2/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/good_med_takeoff_15', check argument load_model_path
+5. run code: a. change to terminal in vscode b.type 'python3 test_ardu_0309.py'
+
+
+
+--------------------------------------------
+B. cart following experiment
+

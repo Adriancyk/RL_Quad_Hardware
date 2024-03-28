@@ -1,46 +1,46 @@
-from dynamics import QuadrotorEnv, render1, render2
+from dynamics import QuadrotorEnv, render
 from agent import SAC
 from pyquaternion import Quaternion
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt
-import sys
+import sys, os
 
 def test(args):
     # sys.path.append('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/')
     env = QuadrotorEnv(args)
-    # agent = SAC(env.observation.shape[0], env.action_space, args)
-    # agent.load_model(args.load_model_path, evaluate=True)
+    cwd = os.getcwd()
     agent_tf = SAC(14, env.action_space, args)
-    agent_tf.load_model('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/sac_checkpoint_Quadrotor_episode2200_mode_takeoff', evaluate=True)
     agent_tr = SAC(18, env.action_space, args)
-    agent_tr.load_model('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01', evaluate=True)
 
-    state = env.reset().copy()
-    state[:3] = [0.0, 0.0, 0.0]
+    path_tf = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700')
+    path_tr = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01')
+
+    agent_tf.load_model(path_tf)
+    agent_tr.load_model(path_tr)
+
+    state = np.zeros((14,))
     done = False
     states = []
     actions = []
     angles = []
     uni_states = []
     while not done:
-        # state[:2] = [0, 0]
-        # state[3:5] = [0, 0]
-        s = state[:3].copy()
+        s = state[:3].copy() # save the position
+        s[2] = -s[2]
+        states.append(s)
 
-        state = np.array(state[:14])
-        state[10:] = [0, 0, 0, 0]
+        state[10:] = [0, 0, 0, 0] # for takeoff policy use, set uni pos vel to 0
         state_tr = np.concatenate([state, np.zeros(4,)])
         uni_fur_pos, _ = env.compute_uni_future_traj(4)
         rel_pos = (uni_fur_pos - state[:2].reshape(-1, 1)).flatten('F')
         state_tr[10:] = rel_pos
 
-        s[2] = -s[2]
-        states.append(s)
+        
         
         uni_states.append(env.get_unicycle_state(env.steps))
         action = agent_tf.select_action(state, eval=True)
-        # if np.abs(np.abs(state[2]) - 1.5) < 0.15 and np.linalg.norm(state[4:7]) < 2.0:
+
         if env.steps > 300:
             action = agent_tr.select_action(state_tr)
             
@@ -54,6 +54,7 @@ def test(args):
         yaw, pitch, roll  = quaternion.yaw_pitch_roll
         angles.append([roll, pitch, yaw])
         state = next_state
+        env.steps += 1
 
     actions = np.array(actions)
     fig = plt.figure()
@@ -75,7 +76,7 @@ def test(args):
     plt.show()
     angles = np.array(angles)
     uni_states = np.array(uni_states)
-    render2(states, angles, uni_states)
+    render(states, angles, uni_states, actions)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')

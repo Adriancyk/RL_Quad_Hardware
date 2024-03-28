@@ -15,6 +15,7 @@ import time
 from pymavlink.quaternion import QuaternionBase
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
+import os
 
 
 
@@ -91,9 +92,9 @@ def set_target_attitude_throttle_easy(connection, boot_time, action):
 
 def yaw3force_to_quat_thrust(fx, fy, fz, yaw):
     
-    f_total = np.sqrt(fx**2 + fy**2 + fz**2)
+    f_total = -np.sqrt(fx**2 + fy**2 + fz**2)
 
-    roll = -np.arcsin(fy/-f_total) * 4.5  # phi
+    roll = -np.arcsin(fy/f_total) * 4.5  # phi
     
     pitch = np.arctan(fx/fz) * 4.5 # theta   y, x == y/x
 
@@ -127,19 +128,25 @@ def yaw3force_to_quat_thrust(fx, fy, fz, yaw):
 
 
 def test(args):
-    sys.path.append('/home/tx2/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/')
     env = QuadrotorEnv(args)
-    env.control_mode = 'takeoff'
-    agent_tf = SAC(14, env.action_space, args)
-    agent_tf.load_model('/home/tx2/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700', evaluate=True)
+    cwd = os.getcwd()
 
-    agent_tr = SAC(18, env.action_space, args)
-    agent_tr.load_model('/home/tx2/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01', evaluate=True)
+    action_space_tf = spaces.Box(low=np.array([-0.3, -0.3, -25.0]), high=np.array([0.3, 0.3, 0.0]), shape=(3,))
+    action_space_tr = spaces.Box(low=np.array([-1.0, -1.0, -25.0]), high=np.array([1.0, 1.0, 0.0]), shape=(3,))
+
+    agent_tf = SAC(14, action_space_tf, args)
+    agent_tr = SAC(18, action_space_tr, args)
+
+    path_tf = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700')
+    path_tr = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01')
+
+    agent_tf.load_model(path_tf)
+    agent_tr.load_model(path_tr)
 
     print("loaded")
+
     state = np.zeros((14,))
     done = False
-    angles = []
 
     # Start a connection listening on a UDP port
     connection = mavutil.mavlink_connection("/dev/ttyACM0", baud=115200)
@@ -268,19 +275,9 @@ def test(args):
         if time_now - time_last < 0.0175:
             continue
         time_last = time_now
+
+
         
-        
-        ang_vel = 0.05 / 3.0
-        theta = ang_vel * time_record[-1] / np.pi * 180
-
-        # state[10:] = [0,0,0,0]
-        # state[0:10] = [x_record[-1],y_record[-1],z_record[-1],vx_record[-1],vy_record[-1],vz_record[-1],
-        #                quat_ned_collect[0],quat_ned_collect[1], quat_ned_collect[2], quat_ned_collect[3]]
-
- 
-        # action = agent.select_action(state, eval=True)
-
-        state[10:] = [0, 0, 0, 0]
         state[0:10] = [x_record[-1], y_record[-1], z_record[-1], vx_record[-1], vy_record[-1], vz_record[-1],
                        quat_ned_collect[0], quat_ned_collect[1], quat_ned_collect[2], quat_ned_collect[3]]
         
@@ -290,9 +287,10 @@ def test(args):
         rel_pos = (uni_fur_pos - state[:2].reshape(-1, 1)).flatten('F')
         state_tr[10:] = rel_pos
 
+        state[10:] = [0, 0, 0, 0]
         action = agent_tf.select_action(state, eval=True)
         
-        if time.time() - time_start > 6:
+        if time.time() - time_start > 4:
             action = agent_tr.select_action(state_tr, eval=True)
         # print(x_record[-1],y_record[-1],z_record[-1],action)
         # print(x_record[-1],y_record[-1],z_record[-1],action)

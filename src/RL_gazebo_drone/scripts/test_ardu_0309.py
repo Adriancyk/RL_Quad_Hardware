@@ -92,7 +92,7 @@ def yaw3force_to_quat_thrust(fx, fy, fz, yaw):
     f_total = np.sqrt(fx**2 + fy**2 + fz**2)
 
 
-    roll = -np.arcsin(fy/f_total) # phi
+    roll = -np.arcsin(fy/(-f_total)) # phi
     pitch = np.arctan2(fx, -fz) # theta   y, x == y/x ??????????
     yaw = yaw
     
