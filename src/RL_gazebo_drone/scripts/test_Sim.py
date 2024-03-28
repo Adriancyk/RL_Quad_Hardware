@@ -5,13 +5,17 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 import sys, os
+from gym import spaces
 
 def test(args):
-    # sys.path.append('/home/adrian/RL_ws/src/RL_gazebo_drone/scripts/checkpoints/')
     env = QuadrotorEnv(args)
     cwd = os.getcwd()
-    agent_tf = SAC(14, env.action_space, args)
-    agent_tr = SAC(18, env.action_space, args)
+
+    action_space_tf = spaces.Box(low=np.array([-0.3, -0.3, -25.0]), high=np.array([0.3, 0.3, 0.0]), shape=(3,))
+    action_space_tr = spaces.Box(low=np.array([-1.0, -1.0, -25.0]), high=np.array([1.0, 1.0, 0.0]), shape=(3,))
+
+    agent_tf = SAC(14, action_space_tf, args)
+    agent_tr = SAC(18, action_space_tr, args)
 
     path_tf = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/takeoff_0316_700')
     path_tr = os.path.join(cwd, 'src/RL_gazebo_drone/scripts/checkpoints/tracking_NED_15m_50hz_01')

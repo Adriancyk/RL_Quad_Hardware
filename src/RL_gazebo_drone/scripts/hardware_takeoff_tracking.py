@@ -16,6 +16,7 @@ from pymavlink.quaternion import QuaternionBase
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 import os
+from gym import spaces
 
 
 
